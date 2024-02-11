@@ -1,0 +1,47 @@
+---
+- hosts: Node01
+  tasks:
+  - name: Identify customer network card and assign DNS IPs to it.
+    win_shell: |
+     $DomainName = "lab.local"
+     $Public_index = ((Get-wmiObject Win32_networkAdapterConfiguration | ?{$_.IPEnabled}) | where {$_.DHCPEnabled -like "False"} | where {$_.DefaultIPGateway -notlike $null}).InterfaceIndex
+     Set-DnsClientServerAddress -InterfaceIndex $Public_index -ServerAddresses ("192.168.50.2","192.168.50.3")
+     Set-NetIPInterface -InterfaceIndex $Public_index -InterfaceMetric 10
+     $DomainName_suffix = @("$DomainName")
+     $dnsCGSetting = Get-DnsClientGlobalSetting
+     $DomainName_suffix += $dnsCGSetting.SuffixSearchList
+     Set-DnsClientGlobalSetting -SuffixSearchList @($DomainName_suffix)
+     Set-DnsClient -InterfaceIndex $Public_index -ConnectionSpecificSuffix "$DomainName"
+  - name: Add domain name under customer network card dns suffix list
+    win_shell: |
+     $DomainName = "lab.local"
+     $networkConfig = ((Get-wmiObject Win32_networkAdapterConfiguration | ?{$_.IPEnabled}) | where {$_.DHCPEnabled -like "False"} | where {$_.DefaultIPGateway -notlike $null})
+     $networkConfig.SetDnsDomain("$DomainName")
+     $networkConfig.SetDynamicDNSRegistration($true,$true)
+  - name: Remove Register this connection's addresses DNS for all NICs
+    win_shell: |
+      $nics=Get-WmiObject "Win32_NetworkAdapterConfiguration where IPEnabled='TRUE'"
+      foreach($nic in $nics)
+      {$nic.SetDynamicDNSRegistration($false) }
+  - name: Enable Register this connection's addresses only for customer network card
+    win_shell: |
+     $Public_index = ((Get-wmiObject Win32_networkAdapterConfiguration | ?{$_.IPEnabled}) | where {$_.DHCPEnabled -like "False"} | where {$_.DefaultIPGateway -notlike $null}).InterfaceIndex
+     $Public_nic = Get-WmiObject Win32_NetworkAdapterConfiguration | Where-Object {$_.InterfaceIndex -eq "$Public_index"}
+     $Public_nic.SetDynamicDNSRegistration($true) 
+  - name: Network cards order change.
+    win_shell: |
+     $Public_index = ((Get-wmiObject Win32_networkAdapterConfiguration | ?{$_.IPEnabled}) | where {$_.DHCPEnabled -like "False"} | where {$_.DefaultIPGateway -notlike $null}).InterfaceIndex
+     $nics=(Get-WmiObject "Win32_NetworkAdapterConfiguration where IPEnabled='TRUE'" | where {$_.InterfaceIndex -notlike "$Public_index"}).InterfaceIndex
+     foreach($nic in $nics)
+     {$numbers = 100..20 | Where-Object { $_ % 10 -eq 0 }
+     foreach ($number in $numbers)
+     {Set-NetIPInterface -InterfaceIndex $nic -InterfaceMetric $number}}
+  - name: "Join Domain"
+    win_domain_membership:
+      dns_domain_name: lab.local
+      domain_admin_user: Administrator@lab.local
+      domain_admin_password: Admin@123
+      state: domain
+      register: domain_state
+  - win_reboot:
+      connect_timeout: 60
