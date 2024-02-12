@@ -1,5 +1,5 @@
 ---
-- hosts: Node01
+- hosts: all
   tasks:
   - name: Identify customer network card and assign DNS IPs to it.
     win_shell: |
