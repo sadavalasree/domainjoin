@@ -44,7 +44,7 @@
     win_domain_membership:
       dns_domain_name: lab.local
       domain_admin_user: Administrator@lab.local
-      domain_admin_password: {{ pass }}
+      domain_admin_password: "{{ pass }}"
       state: domain
       register: domain_state
   - win_reboot:
