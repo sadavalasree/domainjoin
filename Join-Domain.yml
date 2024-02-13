@@ -36,10 +36,6 @@
      {$numbers = 100..20 | Where-Object { $_ % 10 -eq 0 }
      foreach ($number in $numbers)
      {Set-NetIPInterface -InterfaceIndex $nic -InterfaceMetric $number}}
-  - name: Test
-    module:
-     username: testuser
-     password: "{{ pass }}"
   - name: "Join Domain"
     win_domain_membership:
       dns_domain_name: lab.local
